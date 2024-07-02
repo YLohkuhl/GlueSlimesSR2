@@ -21,14 +21,18 @@ namespace GlueSlimes
 
         public override void OnInitializeMelon()
         {
-            gluePlortType = ScriptableObject.CreateInstance<IdentifiableType>();
             glueDefinition = ScriptableObject.CreateInstance<SlimeDefinition>();
             glueDefinition.hideFlags |= HideFlags.HideAndDontSave;
-            gluePlortType.hideFlags |= HideFlags.HideAndDontSave;
             glueDefinition.name = "Glue";
+
             glueDefinition.color = Color.white;
             glueDefinition._pediaPersistenceSuffix = "glue_slime";
+
+            gluePlortType = ScriptableObject.CreateInstance<IdentifiableType>();
+            gluePlortType.hideFlags |= HideFlags.HideAndDontSave;
             gluePlortType.name = "GluePlort";
+
+            gluePlortType.IsPlort = true;
             gluePlortType.color = Color.white;
             gluePlortType._pediaPersistenceSuffix = "glue_plort";
         }
@@ -43,9 +47,6 @@ namespace GlueSlimes
                     }
                 case "GameCore":
                     {
-                        gluePlortType.localizedName = HarmonyPatches.LocalizationDirectorLoadTablePatch.AddTranslation("Actor", "l.glue_plort", "Glue Plort");
-                        glueDefinition.localizedName = HarmonyPatches.LocalizationDirectorLoadTablePatch.AddTranslation("Actor", "l.glue_slime", "Glue Slime");
-
                         #region GLUE_PLORT
                         gluePlortType.prefab = Utility.PrefabUtils.CopyPrefab(Utility.Get<IdentifiableType>("PinkPlort").prefab);
                         gluePlortType.prefab.name = "GluePlort";

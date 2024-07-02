@@ -65,70 +65,45 @@ internal class Utility
 
     public static class Pedia
     {
-        internal static HashSet<PediaEntry> addedPedias = new HashSet<PediaEntry>();
+        internal static HashSet<PediaEntry> pediasToPatch = new HashSet<PediaEntry>();
 
-        public static string CreateIdentifiableKey(string prefix, IdentifiableType identifiableType)
-        { return "m." + prefix + "." + identifiableType._pediaPersistenceSuffix; }
-
-        public static string CreateIdentifiablePageKey(string prefix, IdentifiableType identifiableType)
-        { return "m." + prefix + "." + identifiableType._pediaPersistenceSuffix; }
-
-        public static PediaEntry AddSlimepedia(IdentifiableType identifiableType, string pediaEntryName, string pediaIntro, string pediaSlimeology, string pediaRisks, string pediaPlortonomics, bool unlockedInitially = false)
+        public static void RegisterPediaEntry(PediaEntry pediaEntry)
         {
-            if (Get<IdentifiablePediaEntry>(pediaEntryName))
+            if (!pediasToPatch.Contains(pediaEntry))
+                pediasToPatch.Add(pediaEntry);
+        }
+
+        public static IdentifiablePediaEntry CreateIdentifiableEntry(IdentifiableType identifiableType, PediaHighlightSet highlightSet,
+            LocalizedString intro, PediaEntryDetail[] entryDetails, bool isUnlockedInitially = false)
+        {
+            if (Get<IdentifiablePediaEntry>(identifiableType?.name))
                 return null;
 
-            PediaCategory basePediaEntryCategory = SRSingleton<SceneContext>.Instance.PediaDirector._pediaConfiguration.Categories.ToArray().First(x => x.name == "Slimes");
-            PediaEntry pediaEntry = basePediaEntryCategory._items.First();
             IdentifiablePediaEntry identifiablePediaEntry = ScriptableObject.CreateInstance<IdentifiablePediaEntry>();
-
-            LocalizedString intro = AddTranslation("Pedia", CreateIdentifiableKey("intro", identifiableType), pediaIntro);
-            LocalizedString slimeology = AddTranslation("PediaPage", CreateIdentifiablePageKey("slimeology", identifiableType), pediaSlimeology);
-            LocalizedString risks = AddTranslation("PediaPage", CreateIdentifiablePageKey("risks", identifiableType), pediaRisks);
-            LocalizedString plortonomics = AddTranslation("PediaPage", CreateIdentifiablePageKey("plortonomics", identifiableType), pediaPlortonomics);
-
-            PediaEntryDetail[] entryDetails = new PediaEntryDetail[]
-            {
-                new PediaEntryDetail()
-                {
-                    Section = Get<PediaDetailSection>("Slimeology"),
-                    Text = slimeology,
-                    TextGamepad = new LocalizedString(),
-                    TextPS4 = new LocalizedString()
-                },
-                new PediaEntryDetail()
-                {
-                    Section = Get<PediaDetailSection>("Rancher Risks"),
-                    Text = risks,
-                    TextGamepad = new LocalizedString(),
-                    TextPS4 = new LocalizedString()
-                },
-                new PediaEntryDetail()
-                {
-                    Section = Get<PediaDetailSection>("Plortonomics"),
-                    Text = plortonomics,
-                    TextGamepad = new LocalizedString(),
-                    TextPS4 = new LocalizedString()
-                }
-            };
-
             identifiablePediaEntry.hideFlags |= HideFlags.HideAndDontSave;
-            identifiablePediaEntry.name = pediaEntryName;
+            identifiablePediaEntry.name = identifiableType.name;
+
             identifiablePediaEntry._title = identifiableType.localizedName;
             identifiablePediaEntry._description = intro;
             identifiablePediaEntry._identifiableType = identifiableType;
 
-            identifiablePediaEntry._highlightSet = pediaEntry._highlightSet;
             identifiablePediaEntry._details = entryDetails;
-            identifiablePediaEntry._unlockInfoProvider = SceneContext.Instance.PediaDirector.Cast<IUnlockInfoProvider>();
-            identifiablePediaEntry._isUnlockedInitially = unlockedInitially;
+            identifiablePediaEntry._highlightSet = highlightSet;
+            // identifiablePediaEntry._unlockInfoProvider = SceneContext.Instance.PediaDirector.Cast<IUnlockInfoProvider>();
+            identifiablePediaEntry._isUnlockedInitially = isUnlockedInitially;
 
-            if (!basePediaEntryCategory._items.Contains(identifiablePediaEntry))
-                basePediaEntryCategory._items = basePediaEntryCategory._items.ToArray().AddToArray(identifiablePediaEntry);
-            if (!addedPedias.Contains(identifiablePediaEntry))
-                addedPedias.Add(identifiablePediaEntry);
-
+            RegisterPediaEntry(identifiablePediaEntry);
             return identifiablePediaEntry;
+        }
+
+        public static void AddPediaToCategory(PediaEntry pediaEntry, PediaCategory pediaCategory)
+        {
+            if (!pediaCategory)
+                return;
+
+            LookupDirector director = SRSingleton<GameContext>.Instance.LookupDirector;
+            if (!director._categories[director._categories.IndexOf(pediaCategory.GetRuntimeCategory())].Contains(pediaEntry))
+                director.AddPediaEntryToCategory(pediaEntry, pediaCategory);
         }
     }
 }

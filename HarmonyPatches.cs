@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
 using Il2Cpp;
-using Il2CppMonomiPark.SlimeRancher.DataModel;
-using Il2CppMonomiPark.SlimeRancher;
 using Il2CppMonomiPark.SlimeRancher.Script.Util;
 using Il2CppMonomiPark.SlimeRancher.UI;
 using Il2CppMonomiPark.SlimeRancher.UI.Localization;
@@ -15,57 +13,121 @@ using UnityEngine.Localization;
 using UnityEngine.Localization.Tables;
 using Il2CppMonomiPark.SlimeRancher.Pedia;
 
+using static Utility;
+using static GlueSlimes.GlueEntry;
+
 namespace GlueSlimes
 {
     internal class HarmonyPatches
     {
         [HarmonyPatch(typeof(MarketUI), "Start")]
-        public static class PatchMarketUIStart
+        internal static class PatchMarketUIStart
         {
             public static void Prefix(MarketUI __instance)
             {
                 __instance.plorts = (from x in __instance.plorts
-                                     where !GlueEntry.plortsToPatch.Exists((MarketUI.PlortEntry y) => y == x)
+                                     where !plortsToPatch.Exists((MarketUI.PlortEntry y) => y == x)
                                      select x).ToArray();
-                __instance.plorts = __instance.plorts.ToArray().AddRangeToArray(GlueEntry.plortsToPatch.ToArray());
+                __instance.plorts = __instance.plorts.ToArray().AddRangeToArray(plortsToPatch.ToArray());
             }
         }
 
         [HarmonyPatch(typeof(EconomyDirector), "InitModel")]
-        public static class PatchEconomyDirectorInitModel
+        internal static class PatchEconomyDirectorInitModel
         {
             public static void Prefix(EconomyDirector __instance)
             {
-                __instance.BaseValueMap = __instance.BaseValueMap.ToArray().AddRangeToArray(GlueEntry.valueMapsToPatch.ToArray());
+                __instance.BaseValueMap = __instance.BaseValueMap.ToArray().AddRangeToArray(valueMapsToPatch.ToArray());
             }
         }
 
-        [HarmonyPatch(typeof(AutoSaveDirector), "Awake")]
-        public static class PatchAutoSaveDirectorAwake
+        [HarmonyPatch(typeof(LookupDirector), "Awake")]
+        internal static class PatchLookupDirectorAwake
         {
-            public static void Prefix(AutoSaveDirector __instance)
-            {
-                Utility.Get<IdentifiableTypeGroup>("PlortGroup").memberTypes.Add(GlueEntry.gluePlortType);
-                Utility.Get<IdentifiableTypeGroup>("BaseSlimeGroup").memberTypes.Add(GlueEntry.glueDefinition);
-                Utility.Get<IdentifiableTypeGroup>("VaccableBaseSlimeGroup").memberTypes.Add(GlueEntry.glueDefinition);
-                Utility.Get<IdentifiableTypeGroup>("SlimesGroup").memberTypes.Add(GlueEntry.glueDefinition);
-                __instance.identifiableTypes.memberTypes.Add(GlueEntry.gluePlortType);
-                __instance.identifiableTypes.memberTypes.Add(GlueEntry.glueDefinition);
-            }
-        }
+            private static IdentifiableTypeGroup[][] _registryIdentifiableGroups = new IdentifiableTypeGroup[0][];
 
-        [HarmonyPatch(typeof(SavedGame))]
-        internal static class SavedGamePushPatch
-        {
-            [HarmonyPrefix]
-            [HarmonyPatch(nameof(SavedGame.Push), typeof(GameModel))]
-            public static void PushGameModel(SavedGame __instance)
+            public static void Prefix(LookupDirector __instance)
             {
-                foreach (var pediaEntry in Utility.Pedia.addedPedias)
-                {
-                    if (!__instance.pediaEntryLookup.ContainsKey(pediaEntry.PersistenceId))
-                        __instance.pediaEntryLookup.Add(pediaEntry.PersistenceId, pediaEntry);
-                }
+                RegisterPedias();
+
+                _registryIdentifiableGroups =
+                [
+                    [
+                        Get<IdentifiableTypeGroup>("BaseSlimeGroup"),
+                        Get<IdentifiableTypeGroup>("EdibleSlimeGroup"),
+                        Get<IdentifiableTypeGroup>("SlimesSinkInShallowWaterGroup"),
+                        Get<IdentifiableTypeGroup>("VaccableBaseSlimeGroup"),
+                        Get<IdentifiableTypeGroup>("IdentifiableTypesGroup")
+                    ],
+                    [
+                        Get<IdentifiableTypeGroup>("EdiblePlortFoodGroup"),
+                        Get<IdentifiableTypeGroup>("PlortGroup"),
+                        Get<IdentifiableTypeGroup>("IdentifiableTypesGroup")
+                    ]
+                ];
+
+                RegisterIdentifiables(__instance);
+            }
+
+            private static void RegisterIdentifiables(LookupDirector director)
+            {
+                foreach (var identifiableTypeGroup in _registryIdentifiableGroups[0])
+                    AddIdentifiableTypeToGroup(director, glueDefinition, identifiableTypeGroup);
+
+                foreach (var identifiableTypeGroup in _registryIdentifiableGroups[1])
+                    AddIdentifiableTypeToGroup(director, gluePlortType, identifiableTypeGroup);
+            }
+
+            private static void RegisterPedias()
+            {
+                gluePlortType.localizedName = LocalizationDirectorLoadTablePatch.AddTranslation("Actor", "l.glue_plort", "Glue Plort");
+                glueDefinition.localizedName = LocalizationDirectorLoadTablePatch.AddTranslation("Actor", "l.glue_slime", "Glue Slime");
+
+                PediaEntry glueEntry = Pedia.CreateIdentifiableEntry(glueDefinition, Get<PediaEntry>("Pink")._highlightSet,
+                    LocalizationDirectorLoadTablePatch.AddTranslation("PediaPage", "m.intro.glue_slime", "Gooey, Hungry, Vegetarian Slime?"),
+                    [
+                        new PediaEntryDetail()
+                        {
+                            Section = Get<PediaDetailSection>("Slimeology"),
+                            Text = LocalizationDirectorLoadTablePatch.AddTranslation("PediaPage", "m.slimeology.glue_slime",
+                                "Glue Slimes are your gooey little friends! They're made out of glue entirely, along with some slimey substance. " +
+                                "They do get hungry to the point they may or may not eat something they shouldn't. " +
+                                "<s>Tarrs also dislike their gluey taste and will not eat them.<s>\n\n\n" +
+                                "<i>They may or may not have a relation to other <b>liquid formed slimes</b>.</i>"
+                            ),
+                            TextGamepad = new(),
+                            TextPS4 = new()
+                        },
+                        new PediaEntryDetail()
+                        {
+                            Section = Get<PediaDetailSection>("Rancher Risks"),
+                            Text = LocalizationDirectorLoadTablePatch.AddTranslation("PediaPage", "m.risks.glue_slime",
+                                "There are no dangerous risk! Glue Slimes are usually friendly, but.. if they have no other food source, they may result to eating Pink Slimes. " +
+                                "They're common so its easy for them to gobble on with no veggies around, so keep them away from your pink slimes if you must!"
+                            ),
+                            TextGamepad = new(),
+                            TextPS4 = new()
+                        },
+                        new PediaEntryDetail()
+                        {
+                            Section = Get<PediaDetailSection>("Plortonomics"),
+                            Text = LocalizationDirectorLoadTablePatch.AddTranslation("PediaPage", "m.plortonomics.glue_slime", 
+                                "Their plorts are made out of glue as well, great for gluing things together.. that's for sure!"
+                            ),
+                            TextGamepad = new(),
+                            TextPS4 = new()
+                        }
+                    ]
+                );
+
+                Pedia.AddPediaToCategory(glueEntry, Get<PediaCategory>("Slimes"));
+            }
+
+            public static void AddIdentifiableTypeToGroup(LookupDirector director, IdentifiableType identifiableType, IdentifiableTypeGroup identifiableTypeGroup)
+            {
+                if (!identifiableTypeGroup._memberTypes.Contains(identifiableType))
+                    identifiableTypeGroup._memberTypes.Add(identifiableType);
+                director.AddIdentifiableTypeToGroup(identifiableType, identifiableTypeGroup);
             }
         }
 
@@ -74,23 +136,11 @@ namespace GlueSlimes
         {
             public static void Prefix(PediaDirector __instance)
             {
-                #region PEDIAS
-                Utility.Pedia.AddSlimepedia(Utility.Get<IdentifiableType>("Glue"), "Glue",
-                    "Gooey, Hungry, Vegetarian Slime?",
-                    "Glue Slimes are your gooey little friends! They're made out of glue entirely, along with some slimey substance. They do get hungry to the point they may or may not eat something they shouldn't. <s>Tarrs also dislike their gluey taste and will not eat them.<s>\n\n\n" +
-                    "<i>They may or may not have a relation to other <b>liquid formed slimes</b>.</i>",
-                    "There are no dangerous risk! Glue Slimes are usually friendly, but.. if they have no other food source, they may result to eating Pink Slimes. They're common so its easy for them to gobble on with no veggies around, so keep them away from your pink slimes if you must!",
-                    "Their plorts are made out of glue as well, great for gluing things together.. that's for sure!"
-                );
-
-                // Utility.Pedia.AddSlimepediaPage("Glue", 2, "They may or may not have a relation to other <b>liquid formed slimes<b>.");
-                #endregion
-
-                foreach (var pediaEntry in Utility.Pedia.addedPedias)
+                foreach (var pediaEntry in Pedia.pediasToPatch)
                 {
-                    var identPediaEntry = pediaEntry.TryCast<IdentifiablePediaEntry>();
-                    if (identPediaEntry && !__instance._identDict.ContainsKey(identPediaEntry.IdentifiableType))
-                        __instance._identDict.Add(identPediaEntry.IdentifiableType, pediaEntry);
+                    if (!pediaEntry)
+                        continue;
+                    pediaEntry._unlockInfoProvider = __instance.Cast<IUnlockInfoProvider>();
                 }
             }
         }
